@@ -5,7 +5,7 @@ import android.telephony.SubscriptionManager
 class SMSManager {
     fun send(request: SMSRequest): Boolean {
         if (request.to.isEmpty()) return false
-        val messagePrefix = if (request.shopId.isNotEmpty()) "" else "[Pretty Of System]\n\n"
+        val messagePrefix = if (request.shopId.isNotEmpty()) "" else "[Pretty Of System]\n"
 
         return sendMessage(request.to, messagePrefix, request.message)
     }

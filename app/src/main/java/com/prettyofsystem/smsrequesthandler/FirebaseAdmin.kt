@@ -2,6 +2,7 @@ package com.prettyofsystem.smsrequesthandler
 import android.util.Log
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.ListenerRegistration
+import com.google.firebase.firestore.Query
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -14,6 +15,7 @@ class FirebaseAdmin {
     fun startListeningForSMSRequests(onRequestFetched: (SMSRequest) -> Unit) {
         listenerRegistration = db.collection("smsRequest")
             .whereEqualTo("status", SMSRequestStatusEnum.Pending)
+            .orderBy("serverTimestamp", Query.Direction.ASCENDING)  // Specify ascending order here
             .limit(1)
             .addSnapshotListener { snapshots, e ->
                 if (e != null || snapshots == null || snapshots.isEmpty) return@addSnapshotListener

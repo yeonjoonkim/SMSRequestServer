@@ -4,97 +4,59 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
+import android.os.*
 import androidx.appcompat.app.AppCompatActivity
-import android.os.Bundle
 import android.view.WindowManager
 import androidx.appcompat.app.AlertDialog
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
-import android.os.Build
-import android.os.PowerManager
 import android.provider.Settings
 import android.widget.TextView
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.GlobalScope
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 class MainActivity : AppCompatActivity() {
     private var firebaseAdmin: FirebaseAdmin = FirebaseAdmin()
     private var smsManager: SMSManager = SMSManager()
-    private val smsPermissionRequestCode = 101 // Unique request code for SMS permission
-
+    private var refreshTimeInMillis = 180000
+    private val requestPermissionCode = 100
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
-        checkAndRequestPermissions()
+        checkPermissionsAndStart()
     }
 
-    private fun checkAndRequestPermissions() {
-        if (ContextCompat.checkSelfPermission(this, Manifest.permission.SEND_SMS) != PackageManager.PERMISSION_GRANTED) {
-            ActivityCompat.requestPermissions(this, arrayOf(Manifest.permission.SEND_SMS), smsPermissionRequestCode)
-        } else {
-            startSMSService() // Start the service if permissions are already granted
-            checkForBatteryOptimization() // Check battery optimization settings
-        }
-    }
-
-    override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
-        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
-        if (requestCode == smsPermissionRequestCode && allRequiredPermissionsGranted(grantResults)) {
-            startSMSService() // Start the service when permissions are granted
-            checkForBatteryOptimization() // Also, check for battery optimization settings
-        } else {
-            displaySMSRequired() // Show rationale if permission is denied
-        }
-    }
-
-    private fun allRequiredPermissionsGranted(grantResults: IntArray): Boolean {
-        return grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED
-    }
-
+    //Message Logic
     private fun startSMSService() {
+        refreshTimeInMillis = 180000
+        startRefreshCountdown()
         listenToSMSRequests()
     }
 
-    private fun checkForBatteryOptimization() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-            val pm = getSystemService(Context.POWER_SERVICE) as PowerManager
-            if (!pm.isIgnoringBatteryOptimizations(packageName)) {
-                val intent = Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
-                    data = Uri.parse("package:$packageName")
+    private fun startRefreshCountdown() {
+        GlobalScope.launch(Dispatchers.IO) { // Launch coroutine in background
+            var remainingTime = refreshTimeInMillis
+            while (remainingTime > 0) {
+                val statusTitle: TextView = findViewById(R.id.refreshDateTime)
+                val refreshTimeText = "Refresh after: ${remainingTime / 1000} seconds"
+                runOnUiThread { // Update UI on main thread
+                    statusTitle.text = refreshTimeText
                 }
+                remainingTime -= 1000 // Decrement by 1 second
+                delay(1000) // Wait for 1 second
+            }
+
+            // After countdown completes, refresh the app (optional)
+            runOnUiThread {
+                finish()
+                val intent = Intent(this@MainActivity, MainActivity::class.java)
                 startActivity(intent)
             }
         }
-    }
-
-    private fun displaySMSRequired() {
-        AlertDialog.Builder(this)
-            .setTitle("Permission Required")
-            .setMessage("Sending SMS requires this permission. Please allow it in the next prompt for the app to function correctly.")
-            .setPositiveButton("OK") { _, _ ->
-                ActivityCompat.requestPermissions(this, arrayOf(android.Manifest.permission.SEND_SMS), smsPermissionRequestCode)
-            }
-            .setNegativeButton("Cancel") {_,_ -> deepFinish()}
-            .create()
-            .show()
-    }
-
-    private fun deepFinish() {
-        val cacheDir = cacheDir
-        if (cacheDir.isDirectory) {
-            cacheDir.listFiles()?.forEach { file ->
-                file.delete()
-            }
-        }
-
-        finishAffinity()
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-            finishAndRemoveTask()
-        }
-        android.os.Process.killProcess(android.os.Process.myPid())
     }
 
     private fun listenToSMSRequests() {
@@ -112,17 +74,85 @@ class MainActivity : AppCompatActivity() {
 
     private fun updateLastMessageSent(request: SMSRequest, messageStatus: SMSRequestStatusEnum){
         val statusTitle: TextView = findViewById(R.id.statusTitle)
-        val previousMessage = "Shop name: " + request.shopName +
-                "\nShop Address:" + request.shopAddress +
-                "\nShop Phone: " + request.shopPhoneNumber +
-                "\nShop Date Time: " + request.shopDateTime +
+        val previousMessage = "requestedDateTime: " + request.requestedDateTime +
                 "\nShop Timezone: " + request.shopTimezone +
+                "\nEvent Type: " + request.eventType +
                 "\nStatus: " +  messageStatus.toString() +
                 "\n To: " + request.to.joinToString(separator = " ", prefix = "", postfix = "") +
                 "\nMessage: " + request.message
 
         statusTitle.text = previousMessage
     }
+
+    //Permission
+    private fun checkPermissionsAndStart() {
+        val permissionsToCheck = mutableListOf<String>()
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.SEND_SMS) != PackageManager.PERMISSION_GRANTED) {
+            permissionsToCheck.add(Manifest.permission.SEND_SMS)
+        }
+
+        if (permissionsToCheck.isEmpty()) {
+            startSMSService() // Assuming you have a function to start SMS service
+            checkForBatteryOptimization()
+            startRefreshCountdown() // Start refresh countdown
+        } else {
+            val permissionsToRequest = permissionsToCheck.toTypedArray()
+            ActivityCompat.requestPermissions(this, permissionsToRequest, requestPermissionCode) // Use a common request code
+        }
+    }
+
+    override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        if (requestCode == requestPermissionCode) {
+            val grantedPermissions = mutableListOf<String>()
+            for (i in permissions.indices) {
+                if (grantResults[i] == PackageManager.PERMISSION_GRANTED) {
+                    grantedPermissions.add(permissions[i])
+                }
+            }
+            if (grantedPermissions.contains(Manifest.permission.SEND_SMS)) {
+                startSMSService()
+            }
+            if (grantedPermissions.isEmpty()) {
+                displayPermissionRequiredDialog()
+            } else {
+                checkForBatteryOptimization()
+            }
+        }
+    }
+
+    private fun displayPermissionRequiredDialog() {
+        val builder = AlertDialog.Builder(this)
+            .setTitle("Permissions Required")
+            .setMessage("This app requires certain permissions to function properly.")
+
+        builder.setPositiveButton("OK") { _, _ ->
+            checkPermissionsAndStart() // Retry permission request
+        }
+            .setNegativeButton("Cancel") { dialog, _ ->
+                dialog.dismiss() // Dismiss the dialog
+            }
+            .create()
+            .show()
+    }
+
+    private fun checkForBatteryOptimization() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            val pm = getSystemService(Context.POWER_SERVICE) as PowerManager
+            if (!pm.isIgnoringBatteryOptimizations(packageName)) {
+                val intent = Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
+                    data = Uri.parse("package:$packageName")
+                }
+                startActivity(intent)
+            }
+        }
+    }
+
+    private fun allRequiredPermissionsGranted(grantResults: IntArray): Boolean {
+        return grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED
+    }
+
+
 }
 
 

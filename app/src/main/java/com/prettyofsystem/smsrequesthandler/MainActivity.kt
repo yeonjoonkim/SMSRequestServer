@@ -1,21 +1,25 @@
 package com.prettyofsystem.smsrequesthandler
 import android.Manifest
+import android.app.AlarmManager
+import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.*
-import androidx.appcompat.app.AppCompatActivity
+import android.provider.Settings
 import android.view.WindowManager
+import android.widget.TextView
 import androidx.appcompat.app.AlertDialog
+import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
-import android.provider.Settings
-import android.widget.TextView
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlin.system.exitProcess
+
 
 class MainActivity : AppCompatActivity() {
     private var firebaseAdmin: FirebaseAdmin = FirebaseAdmin()
@@ -52,9 +56,12 @@ class MainActivity : AppCompatActivity() {
 
             // After countdown completes, refresh the app (optional)
             runOnUiThread {
-                finish()
-                val intent = Intent(this@MainActivity, MainActivity::class.java)
-                startActivity(intent)
+                val packageManager = packageManager
+                val intent = packageManager.getLaunchIntentForPackage(packageName)!!
+                val componentName = intent.component!!
+                val restartIntent = Intent.makeRestartActivityTask(componentName)
+                startActivity(restartIntent)
+                Runtime.getRuntime().exit(0)
             }
         }
     }

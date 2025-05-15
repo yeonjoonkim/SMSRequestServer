@@ -154,7 +154,6 @@ class MainActivity : AppCompatActivity() {
             }
         }
     }
-
     private fun allRequiredPermissionsGranted(grantResults: IntArray): Boolean {
         return grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED
     }

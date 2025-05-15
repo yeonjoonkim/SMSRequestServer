@@ -83,7 +83,7 @@ class MainActivity : AppCompatActivity() {
         val statusTitle: TextView = findViewById(R.id.statusTitle)
         val previousMessage = "requestedDateTime: " + request.requestedDateTime +
                 "\nShop Timezone: " + request.shopTimezone +
-                "\nEvent Type: " + request.eventType +
+                "\nEvent Type: " + request.type +
                 "\nStatus: " +  messageStatus.toString() +
                 "\n To: " + request.to.joinToString(separator = " ", prefix = "", postfix = "") +
                 "\nMessage: " + request.message

@@ -15,7 +15,7 @@ class FirebaseAdmin {
     fun startListeningForSMSRequests(onRequestFetched: (SMSRequest) -> Unit) {
         listenerRegistration = db.collection("smsRequest")
             .whereEqualTo("status", SMSRequestStatusEnum.Pending)
-            .orderBy("serverTimestamp", Query.Direction.ASCENDING)  // Specify ascending order here
+            .orderBy("createdServerTimestamp", Query.Direction.ASCENDING)
             .limit(1)
             .addSnapshotListener { snapshots, e ->
                 if (e != null || snapshots == null || snapshots.isEmpty) return@addSnapshotListener
